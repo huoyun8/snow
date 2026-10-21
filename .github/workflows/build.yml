@@ -1,0 +1,39 @@
+name: Build XinOCR Integrated
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      # 1) 检出（源码 + 内置 Ling 框架 + 构建脚本 build.ps1）
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2) MSBuild 环境（自动定位 VS / Windows SDK）
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # 3) Rust（msvc 目标）
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable-x86_64-pc-windows-msvc
+          target: x86_64-pc-windows-msvc
+          cache: false   # Cargo.toml 在 XinOCR_v2/，根目录无 manifest，rust-cache 会误报找不到
+
+      # 4) 一站式构建：yoga.lib + Ling.lib + ScreenCaptureLib.lib + cargo build
+      - name: Build
+        shell: pwsh
+        run: .\build.ps1
+
+      # 5) 上传成品 exe
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xin-ocr
+          path: XinOCR_v2\target\release\xin-ocr.exe
+          if-no-files-found: error

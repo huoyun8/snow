@@ -1,0 +1,44 @@
+[package]
+name = "xin-ocr"
+version = "2.0.0"
+edition = "2021"
+description = "Xin OCR + ScreenCapture 整合版（单文件交付）"
+build = "build.rs"
+
+[dependencies.winapi]
+version = "0.3"
+features = [
+    "winuser",
+    "winbase",
+    "wincon",
+    "processthreadsapi",
+    "tlhelp32",
+    "synchapi",
+    "handleapi",
+    "errhandlingapi",
+    "libloaderapi",
+    "wingdi",
+    "shellapi",
+    "memoryapi",
+    "winreg",
+    "winnt",
+    "commdlg",
+    "powrprof",
+    "minwinbase",
+    "sysinfoapi",
+    "reason",
+    "securitybaseapi",
+    "ntdef",
+]
+
+[dependencies]
+qrcode = "0.14"
+rqrr = "0.9"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp"] }
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
