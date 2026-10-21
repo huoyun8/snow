@@ -6,6 +6,7 @@
 //! - 回调里拿到的 `pixels` / `png` 只在回调期间有效，需要留存要自己拷。
 
 #![allow(non_camel_case_types)]
+#![allow(dead_code)] // 完整 C ABI 表面，部分入口由 C++/未来功能调用，未用不算错
 
 use std::os::raw::{c_int, c_void};
 
