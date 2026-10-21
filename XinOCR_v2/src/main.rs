@@ -14,6 +14,7 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicIsize, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use winapi::ctypes::c_void;
 
 use qrcode::{QrCode, EcLevel};
 use rqrr::PreparedImage;
@@ -28,7 +29,8 @@ use winapi::shared::minwindef::FILETIME;
 use winapi::um::processthreadsapi::{GetExitCodeProcess, GetProcessTimes, OpenProcess, TerminateProcess};
 use winapi::um::synchapi::CreateMutexW;
 use winapi::um::memoryapi::{CreateFileMappingW, MapViewOfFile, UnmapViewOfFile, FILE_MAP_READ, FILE_MAP_WRITE};
-use winapi::um::winnt::{PAGE_READWRITE, INVALID_HANDLE_VALUE};
+use winapi::um::winnt::PAGE_READWRITE;
+use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
 use winapi::um::winbase::{GlobalAlloc, GlobalFree, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
 use winapi::um::reason::SHTDN_REASON_MAJOR_OTHER;
 use winapi::um::commdlg::{GetOpenFileNameW, GetSaveFileNameW, OPENFILENAMEW};
@@ -46,7 +48,7 @@ use winapi::um::winuser::{
     CS_HREDRAW, CS_VREDRAW, DefWindowProcW, DestroyMenu, DispatchMessageW,
     DRAWITEMSTRUCT, DrawTextW, DT_CENTER, DT_SINGLELINE, DT_VCENTER, EmptyClipboard,
     EndPaint, EnumWindows, FindWindowW, GetAsyncKeyState, GetCursorPos, GetDlgItem, GetMessageW,
-    GetSystemMetrics, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, IsWindow,
+    GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, IsWindow,
     IDC_ARROW, LoadCursorW, LoadIconW, MF_CHECKED, MF_STRING, MOD_ALT, MOD_CONTROL, MOD_SHIFT,
     MOD_WIN, ODS_SELECTED, OpenClipboard, PAINTSTRUCT, PostQuitMessage, RegisterClassExW,
     RegisterHotKey, SetForegroundWindow, SetWindowTextW, SW_HIDE, SW_RESTORE, IsIconic,
@@ -58,14 +60,13 @@ use winapi::um::winuser::{
     WM_CTLCOLORSTATIC, GetDlgCtrlID,
     WNDCLASSEXW, DestroyWindow, FillRect, GetClientRect, GetDC, GetWindowRect,
     InvalidateRect, ReleaseDC, TrackMouseEvent, TME_LEAVE,
-    TRACKMOUSEEVENT, UpdateWindow, MSG, ES_AUTOHSCROLL, WS_BORDER, WS_POPUP, WS_EX_TOPMOST,
-    WS_EX_TOOLWINDOW, VK_CONTROL, VK_ESCAPE, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
+    TRACKMOUSEEVENT, UpdateWindow, MSG, ES_AUTOHSCROLL, WS_BORDER, WS_POPUP,  VK_CONTROL, VK_ESCAPE, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
     WS_CLIPCHILDREN,
     AdjustWindowRect, SetProcessDPIAware, SetWindowLongPtrW, GetWindowLongPtrW, GWLP_USERDATA,
     WM_SETFONT, VK_RETURN, PostMessageW, SetFocus, SetTimer, KillTimer, WM_TIMER, SetWindowPos,
     ES_MULTILINE, ES_AUTOVSCROLL, ES_WANTRETURN, SWP_NOMOVE, SWP_NOZORDER, GWL_STYLE,
     ExitWindowsEx, WM_SYSCOMMAND, BM_SETCHECK, BM_GETCHECK,
-    BS_AUTORADIOBUTTON, EWX_POWEROFF,
+    BS_AUTORADIOBUTTON, BS_AUTOCHECKBOX, EWX_POWEROFF,
     EnableWindow,
     MessageBoxW, MB_OK, MB_ICONINFORMATION,
     ES_CENTER, WS_GROUP,
@@ -907,12 +908,12 @@ fn monitor_thread(running: Arc<AtomicBool>) {
                         if victims.is_empty() { break; }
                         std::thread::sleep(Duration::from_millis(100));
                         victims.retain(|&pid| {
-                            let h = unsafe { OpenProcess(0x1000 /*QUERY_LIMITED_INFORMATION*/, 0, pid) };
+                            let h = OpenProcess(0x1000 /*QUERY_LIMITED_INFORMATION*/, 0, pid);
                             if h.is_null() { return false; } // 已经退了
                             let mut code = 0u32;
-                            let alive = unsafe { GetExitCodeProcess(h, &mut code) } != 0
+                            let alive = GetExitCodeProcess(h, &mut code) != 0
                                 && code == 259 /*STILL_ACTIVE*/;
-                            unsafe { winapi::um::handleapi::CloseHandle(h); }
+                            winapi::um::handleapi::CloseHandle(h);
                             alive
                         });
                     }
@@ -2851,8 +2852,8 @@ fn ocr_round(eng: &mut OcrEngine, w: u32, h: u32, bgra: &[u8]) -> String {
     let mut payload = Vec::new();
     ocr_put_string(&mut payload, &slot.to_string_lossy());
     payload.extend_from_slice(&bytes.to_le_bytes());
-    if ocr_write_frame(stdin, K_ATTACH, 2, &payload).is_err() { return ocr_fail!(slot, "OCR 通信失败"); }
-    if let Ok((K_BUFFER_ATTACHED, _, _)) = ocr_read_frame(stdout) {} else { return ocr_fail!(slot, "OCR 缓冲区错误"); }
+    if ocr_write_frame(stdin, K_ATTACH, 2, &payload).is_err() { ocr_fail!(slot, "OCR 通信失败"); }
+    if let Ok((K_BUFFER_ATTACHED, _, _)) = ocr_read_frame(stdout) {} else { ocr_fail!(slot, "OCR 缓冲区错误"); }
     // Submit → ImageConsumed；generation 必须与 Attach 的 req_id 一致
     let mut payload = Vec::new();
     payload.extend_from_slice(&2u64.to_le_bytes());  // generation = attach req_id
@@ -2860,10 +2861,10 @@ fn ocr_round(eng: &mut OcrEngine, w: u32, h: u32, bgra: &[u8]) -> String {
     payload.extend_from_slice(&h.to_le_bytes());
     payload.extend_from_slice(&stride.to_le_bytes());
     payload.extend_from_slice(&1u64.to_le_bytes());  // sequence
-    if ocr_write_frame(stdin, K_SUBMIT, 3, &payload).is_err() { return ocr_fail!(slot, "OCR 通信失败"); }
-    if let Ok((K_IMAGE_CONSUMED, _, _)) = ocr_read_frame(stdout) {} else { return ocr_fail!(slot, "OCR 图像错误"); }
+    if ocr_write_frame(stdin, K_SUBMIT, 3, &payload).is_err() { ocr_fail!(slot, "OCR 通信失败"); }
+    if let Ok((K_IMAGE_CONSUMED, _, _)) = ocr_read_frame(stdout) {} else { ocr_fail!(slot, "OCR 图像错误"); }
     // Recognize → Complete
-    if ocr_write_frame(stdin, K_RECOGNIZE, 3, &[]).is_err() { return ocr_fail!(slot, "OCR 通信失败"); }
+    if ocr_write_frame(stdin, K_RECOGNIZE, 3, &[]).is_err() { ocr_fail!(slot, "OCR 通信失败"); }
     let mut text = String::new();
     match ocr_read_frame(stdout) {
         Ok((K_COMPLETE, _, p)) if p.first() == Some(&1) => {

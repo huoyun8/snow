@@ -1,8 +1,11 @@
 *.exe
+!XinOCR_v2/assets/snow-ocr-process.exe
 *.lib
 *.obj
 *.pdb
 *.o
+!XinOCR_v2/icon.o
 target/
 x64/
 *.zip
+ScreenCapture.exe
