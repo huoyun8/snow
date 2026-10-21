@@ -14,7 +14,7 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicIsize, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use winapi::ctypes::c_void;
+use std::os::raw::c_void;
 
 use qrcode::{QrCode, EcLevel};
 use rqrr::PreparedImage;
