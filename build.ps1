@@ -24,14 +24,14 @@ function Run([string]$exePath, [string[]]$argsArr) {
 Run "msbuild" @(
     "$sc\Ling\yoga\yoga.vcxproj",
     "/p:Configuration=Release", "/p:Platform=x64",
-    "/p:SolutionDir=$sc\Ling\", "/nologo", "/v:minimal"
+    "/p:SolutionDir=$sc\Ling\", "/p:RuntimeLibrary=MultiThreadedDLL", "/nologo", "/v:minimal"
 )
 
 # 2) Ling.lib（C++/WinRT + Direct2D 框架）
 Run "msbuild" @(
     "$sc\Ling\Ling.vcxproj",
     "/p:Configuration=Release", "/p:Platform=x64",
-    "/p:SolutionDir=$sc\Ling\", "/nologo", "/v:minimal"
+    "/p:SolutionDir=$sc\Ling\", "/p:RuntimeLibrary=MultiThreadedDLL", "/nologo", "/v:minimal"
 )
 
 # 3) ScreenCaptureLib.lib（截图/标注窗口本体，静态库）
@@ -40,7 +40,7 @@ Run "msbuild" @(
 Run "msbuild" @(
     "$sc\Src\ScreenCaptureLib.vcxproj",
     "/p:Configuration=Release", "/p:Platform=x64",
-    "/p:SolutionDir=$sc\", "/p:OutDir=$sc\x64\Release\",
+    "/p:SolutionDir=$sc\", "/p:OutDir=$sc\x64\Release\", "/p:RuntimeLibrary=MultiThreadedDLL",
     "/nologo", "/v:minimal"
 )
 
